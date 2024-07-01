@@ -95,6 +95,14 @@ def bot(prompt):
             print('Communication error with OpenAI:', error)
             sleep(1)
 
+@app.route('/upload_image', methods=['POST'])
+def upload_image():
+    if 'image' in request.files:
+        uploaded_image = request.files['image']
+        print(uploaded_image)
+        return 'Image received successfully!', 200
+    return 'No file uploaded', 400
+
 @app.route("/chat", methods=["Post"])
 def chat():
     prompt = request.json["msg"]
