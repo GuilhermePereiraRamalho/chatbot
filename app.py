@@ -22,6 +22,9 @@ assistant = get_json()
 thread_id = assistant["thread_id"]
 assistant_id = assistant["assistant_id"]
 
+STATUS_COMPLETED = "completed" 
+STATUS_REQUIRES_ACTION = "requires_action" 
+
 def bot(prompt):
     max_attempts = 1
     retries = 0
@@ -53,11 +56,34 @@ def bot(prompt):
                 assistant_id=assistant_id
             )
 
-            while run.status != "completed":
+            while run.status != STATUS_COMPLETED:
                 run = client.beta.threads.runs.retrieve(
                     thread_id=thread_id,
                     run_id=run.id
                 )
+                print(f'Status: {run.status}')
+
+                if run.status == STATUS_REQUIRES_ACTION:
+                    tools_triggered = run.required_action.submit_tool_outputs.tool_calls
+                    triggered_tool_responses = []
+                    for tool in tools_triggered:
+                        function_name = tool.function.name
+                        chosen_function = my_functions[function_name]
+                        arguments = json.loads(tool.function.arguments)
+                        print(arguments)
+                        function_response = chosen_function(arguments)
+
+                        triggered_tool_responses.append({
+                            'tool_call_id': tool.id,
+                            'output': function_response
+                        })
+                
+                    run = client.beta.threads.runs.submit_tool_outputs(
+                        thread_id = thread_id,
+                        run_id = run.id,
+                        tool_outputs=triggered_tool_responses
+                    )
+
             history = list(client.beta.threads.messages.list(thread_id=thread_id).data)
             response = history[0]
             return response
