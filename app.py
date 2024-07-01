@@ -8,6 +8,8 @@ from flask_cors import CORS
 from select_persona import *
 from select_document import *
 from ecomart_assistant import *
+from vision_ecomart import analyze_image
+import uuid
 
 load_dotenv()
 
@@ -25,7 +27,11 @@ assistant_id = assistant["assistant_id"]
 STATUS_COMPLETED = "completed" 
 STATUS_REQUIRES_ACTION = "requires_action" 
 
+uploaded_image_path = None
+UPLOAD_FOLDER = 'data'
+
 def bot(prompt):
+    global uploaded_image_path
     max_attempts = 1
     retries = 0
 
@@ -45,9 +51,16 @@ def bot(prompt):
                 """
             )
 
+            vision_response = ""
+            if uploaded_image_path != None:
+                vision_response = analyze_image(uploaded_image_path)
+                vision_response += ". In the final response, provide details of the image description."
+                os.remove(uploaded_image_path)
+                uploaded_image_path = None
+
             client.beta.threads.messages.create(
                 thread_id=thread_id,
-                content=prompt,
+                content= vision_response+prompt,
                 role="user"
             )
 
@@ -97,9 +110,15 @@ def bot(prompt):
 
 @app.route('/upload_image', methods=['POST'])
 def upload_image():
+    global uploaded_image_path
     if 'image' in request.files:
         uploaded_image = request.files['image']
-        print(uploaded_image)
+        
+        filename = str(uuid.uuid4()) + os.path.splitext(uploaded_image.filename)[1]
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        uploaded_image.save(file_path)
+        uploaded_image_path = file_path
+
         return 'Image received successfully!', 200
     return 'No file uploaded', 400
 
