@@ -13,40 +13,35 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 model = "gpt-4o"
 context = load('data/ecomart.txt')
 
-def create_id_list():
-    file_id_list = []
+def create_vector_store():
+    vector_store = client.beta.vector_stores.create(name='Ecomart Vector Store')
 
-    file_data = client.files.create(
-        file=open("data/Data_Ecomart.txt", "rb"),
-        purpose="assistants"
+    file_paths = [
+        'data/Data_Ecomart.txt',
+        'data/Policies_Ecomart.txt',
+        'data/Products_Ecomart.txt'
+    ]
+    file_streams = [open(path, 'rb') for path in file_paths]
+
+    client.beta.vector_stores.file_batches.upload_and_poll(
+        vector_store_id=vector_store.id,
+        files=file_streams
     )
-    file_id_list.append(file_data.id)
 
-    file_policies = client.files.create(
-        file=open("data/Policies_Ecomart.txt", "rb"),
-        purpose="assistants"
-    )
-    file_id_list.append(file_policies.id)
-
-    file_products = client.files.create(
-        file=open("data/Products_Ecomart.txt", "rb"),
-        purpose="assistants"
-    )
-    file_id_list.append(file_products.id)
-
-    return file_id_list 
+    return vector_store
 
 def get_json():
     filename = "assistants.json"
 
     if not os.path.exists(filename):
-        thread_id = create_thread()
-        file_id_list = create_id_list()
-        assistant_id = create_assistant(file_id_list)
+        vector_store = create_vector_store()
+        thread = create_thread(vector_store)
+        assistant = create_assistant(vector_store)
+
         data = {
-            "assistant_id": assistant_id.id,
-            "thread_id": thread_id.id,
-            "file_ids": file_id_list
+            'assistant_id': assistant.id,
+            'vector_store_id': vector_store.id,
+            'thread_id': thread.id
         }
 
         with open(filename, "w", encoding="utf-8") as file:
@@ -69,7 +64,7 @@ def create_thread(vector_store):
         }
     )
 
-def create_assistant(file_ids=[]):
+def create_assistant(vector_store):
     assistant = client.beta.assistants.create(
         name="EcoMart Assistant",
         instructions=f"""
@@ -79,6 +74,10 @@ def create_assistant(file_ids=[]):
         """,
         model=model,
         tools=my_tools,
-        file_ids=file_ids
+        tool_resources={
+            'file_search': {
+                'vector_store_ids': [vector_store.id]
+            }
+        }
     )
     return assistant

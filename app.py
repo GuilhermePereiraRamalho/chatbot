@@ -42,10 +42,10 @@ def bot(prompt):
                 """
             )
 
-            client.beta.threads.create(
+            client.beta.threads.messages.create(
                 thread_id=thread_id,
-                role = 'user',
-                content = prompt,
+                content=prompt,
+                role="user"
             )
 
             run = client.beta.threads.runs.create(
